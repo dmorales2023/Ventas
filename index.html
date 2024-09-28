@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Venta de Productos</title>
+    <style>
+        img { max-width: 100px; margin-right: 10px; }
+        .product, .cart-item { margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+    <h1>Agregar Producto</h1>
+    <div>
+        <label>Nombre del Producto:</label>
+        <input type="text" id="productName">
+    </div>
+    <div>
+        <label>Precio:</label>
+        <input type="number" id="productPrice">
+    </div>
+    <div>
+        <label>Foto del Producto:</label>
+        <input type="file" id="productImage" accept="image/*" onchange="previewImage(event)">
+    </div>
+    <div>
+        <img id="imagePreview" style="display:none;" />
+    </div>
+    <button onclick="addProduct()">Agregar Producto</button>
+
+    <h2>Lista de Productos</h2>
+    <div id="productList"></div>
+
+    <h2>Carrito de Ventas</h2>
+    <div id="cart"></div>
+    <h3>Total: Q<span id="totalAmount">0.00</span></h3>
+    <button onclick="emptyCart()">Vaciar Carrito</button>
+
+    <div>
+        <label>Efectivo recibido:</label>
+        <input type="number" id="cashReceived">
+        <button onclick="calculateChange()">Calcular Cambio</button>
+    </div>
+    <h3>Cambio: Q<span id="change">0.00</span></h3>
+
+    <script>
+        let products = [];
+        let cart = [];
+        let total = 0;
+        let imageDataURL = '';
+
+        // Cargar productos y carrito desde localStorage al cargar la página
+        window.onload = function() {
+            loadProductsFromStorage();
+            loadCartFromStorage();
+        };
+
+        function previewImage(event) {
+            const reader = new FileReader();
+            reader.onload = function(){
+                const output = document.getElementById('imagePreview');
+                output.src = reader.result;
+                output.style.display = 'block';
+                imageDataURL = reader.result; // Guardar la URL de la imagen
+            };
+            reader.readAsDataURL(event.target.files[0]);
+        }
+
+        function addProduct() {
+            const name = document.getElementById('productName').value;
+            const price = parseFloat(document.getElementById('productPrice').value);
+
+            if (name && !isNaN(price) && imageDataURL) {
+                const product = { name, price, image: imageDataURL };
+                products.push(product);
+                saveProductsToStorage();  // Guardar en localStorage
+                renderProducts();
+                resetForm();
+            } else {
+                alert("Por favor, complete todos los campos correctamente.");
+            }
+        }
+
+        function renderProducts() {
+            const productList = document.getElementById('productList');
+            productList.innerHTML = '';
+
+            products.forEach((product, index) => {
+                const productDiv = document.createElement('div');
+                productDiv.classList.add('product');
+                productDiv.innerHTML = `
+                    <img src="${product.image}" alt="${product.name}">
+                    <p>${product.name} - Q${product.price.toFixed(2)}</p>
+                    <label>Cantidad: </label>
+                    <input type="number" id="quantity-${index}" min="1" value="1" style="width: 60px;">
+                    <button onclick="addToCart(${index})">Agregar al Carrito</button>
+                    <button onclick="removeProduct(${index})">Eliminar Producto</button>
+                `;
+                productList.appendChild(productDiv);
+            });
+        }
+
+        function addToCart(index) {
+            const quantityInput = document.getElementById(`quantity-${index}`);
+            const quantity = parseInt(quantityInput.value);
+            
+            if (quantity <= 0 || isNaN(quantity)) {
+                alert('Por favor, seleccione una cantidad válida.');
+                return;
+            }
+
+            const product = products[index];
+            const cartItem = { ...product, quantity };
+
+            cart.push(cartItem);
+            total += product.price * quantity;
+            saveCartToStorage();  // Guardar carrito en localStorage
+            renderCart();
+        }
+
+        function renderCart() {
+            const cartDiv = document.getElementById('cart');
+            cartDiv.innerHTML = '';
+
+            cart.forEach((product, index) => {
+                const cartItem = document.createElement('div');
+                cartItem.classList.add('cart-item');
+                cartItem.innerHTML = `
+                    <img src="${product.image}" alt="${product.name}">
+                    <p>${product.name} - Q${product.price.toFixed(2)} x ${product.quantity} unidades = Q${(product.price * product.quantity).toFixed(2)}</p>
+                    <button onclick="removeFromCart(${index})">Eliminar</button>
+                `;
+                cartDiv.appendChild(cartItem);
+            });
+
+            document.getElementById('totalAmount').innerText = total.toFixed(2);
+        }
+
+        function removeFromCart(index) {
+            const product = cart[index];
+            total -= product.price * product.quantity;
+            cart.splice(index, 1); // Eliminar producto del carrito
+            saveCartToStorage();  // Actualizar carrito en localStorage
+            renderCart(); // Renderizar de nuevo el carrito
+        }
+
+        function emptyCart() {
+            cart = [];
+            total = 0;
+            saveCartToStorage();  // Vaciar carrito en localStorage
+            renderCart();
+        }
+
+        function removeProduct(index) {
+            products.splice(index, 1); // Eliminar producto de la lista de productos
+            saveProductsToStorage();  // Actualizar productos en localStorage
+            renderProducts(); // Renderizar de nuevo la lista de productos
+        }
+
+        function calculateChange() {
+            const cashReceived = parseFloat(document.getElementById('cashReceived').value);
+
+            if (!isNaN(cashReceived) && cashReceived >= total) {
+                const change = cashReceived - total;
+                document.getElementById('change').innerText = change.toFixed(2);
+            } else {
+                alert("El efectivo no es suficiente o el valor ingresado es incorrecto.");
+            }
+        }
+
+        function resetForm() {
+            document.getElementById('productName').value = '';
+            document.getElementById('productPrice').value = '';
+            document.getElementById('productImage').value = '';
+            document.getElementById('imagePreview').style.display = 'none';
+            imageDataURL = '';
+        }
+
+        // Guardar los productos en localStorage
+        function saveProductsToStorage() {
+            localStorage.setItem('products', JSON.stringify(products));
+        }
+
+        // Cargar los productos desde localStorage
+        function loadProductsFromStorage() {
+            const storedProducts = localStorage.getItem('products');
+            if (storedProducts) {
+                products = JSON.parse(storedProducts);
+                renderProducts();
+            }
+        }
+
+        // Guardar el carrito en localStorage
+        function saveCartToStorage() {
+            localStorage.setItem('cart', JSON.stringify(cart));
+            localStorage.setItem('total', total.toFixed(2));
+        }
+
+        // Cargar el carrito desde localStorage
+        function loadCartFromStorage() {
+            const storedCart = localStorage.getItem('cart');
+            const storedTotal = localStorage.getItem('total');
+            if (storedCart && storedTotal) {
+                cart = JSON.parse(storedCart);
+                total = parseFloat(storedTotal);
+                renderCart();
+            }
+        }
+
+    </script>
+
+</body>
+</html>
